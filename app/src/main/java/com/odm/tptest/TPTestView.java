@@ -13,29 +13,31 @@ import android.graphics.Path;
 import android.graphics.PointF;
 import android.os.Handler;
 import android.os.Message;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
 import java.text.DecimalFormat;
-import android.view.Display;
 
-public class TPTestView extends View{
+public class TPTestView extends View {
 
-    static final float X_LEFT = 30;
+    private static final int RESET_MSG = 100;
+    private static final int TIMEOUT_MSG = 101;
+    private static final long TIMEOUT = 15 * 1000L;
+
+    static final float X_LEFT = 60;
     static float X_RIGHT = 235;
+    static float X_MIDDLE = 0;
     static float Y_TOP = 5;
     static float Y_BOTTEM = 315;
-    static final float TOLERANCE = X_LEFT * 2;
+    static float Y_MIDDLE = 0;
+    static final float TOLERANCE = 60;
     static int TOTAL_POINTS_SQU_1 = 0;
-    //static final int TOTAL_POINTS_SQU_2 = (int) (Y_BOTTEM - Y_TOP);
-    //static final float TOTAL_POINTS_CRO = (float) Math.sqrt(Math.pow(X_RIGHT - X_LEFT, 2)
-    //        + Math.pow(Y_BOTTEM - Y_TOP, 2));
 
     static int TOTAL_POINTS_SQU_2 = 0;
     static float TOTAL_POINTS_CRO = 0;
 
-    private Path mPathSquare;
+    private Path mPathHorizontal;
+    private Path mPathVertical;
     private Path mPathCross;
     private Path mPathCurrentGre;
     private Path mPathCurrentRed;
@@ -53,6 +55,8 @@ public class TPTestView extends View{
     private int mStep;
     private boolean isOnEdge = false;
     private boolean isHit = false;
+    private boolean isIncrease = false;
+    private boolean isDecrease = false;
     private boolean drawAble = false;
     private boolean isBegin = false;  
     private float hitCount;
@@ -64,11 +68,36 @@ public class TPTestView extends View{
     
     private Context mContext;
 
+    private Handler handler = new Handler(){
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            switch (msg.what) {
+                case RESET_MSG:
+                    mPathCurrentRed.reset();
+                    mPathCurrentGre.reset();
+                    mPercent = "";
+                    invalidate();
+                    break;
+                case TIMEOUT_MSG:
+                    Intent intent = new Intent();
+                    intent.putExtra("result", true);
+                    TouchPanelActivity activity = (TouchPanelActivity) mContext;
+                    activity.feedbackResult(0);
+                    //activity.feedbackResult(TestCase.STATE_FAIL);
+                    break;
+                default:
+                    break;
+            }
+
+        }
+    };
+
     private int getNavigationBarHeight(Context context) {
         Resources resources = context.getResources();
         int resourceId = resources.getIdentifier("navigation_bar_height","dimen", "android");
         int height = resources.getDimensionPixelSize(resourceId);
-        Log.v("ldong", "Navi height:" + height);
+        LogUtils.logd("Navi height:" + height);
         return height;
     }
 
@@ -76,7 +105,7 @@ public class TPTestView extends View{
         Resources resources = context.getResources();
         int resourceId = resources.getIdentifier("status_bar_height", "dimen","android");
         int height = resources.getDimensionPixelSize(resourceId);
-        Log.v("ldong", "Status height:" + height);
+        LogUtils.logd("Status height:" + height);
         return height;
     }
 
@@ -84,9 +113,11 @@ public class TPTestView extends View{
         super(context);
 
         mContext = context;
-        Y_TOP = X_LEFT;
+        Y_TOP = TOLERANCE;
         Y_BOTTEM = heightPix - Y_TOP;
         X_RIGHT = widthPix - X_LEFT;
+        X_MIDDLE = widthPix / 2;
+        Y_MIDDLE = heightPix /2;
 
         TOTAL_POINTS_SQU_1 = (int) (X_RIGHT - X_LEFT);
         TOTAL_POINTS_SQU_2 = (int) (Y_BOTTEM - Y_TOP);
@@ -101,35 +132,47 @@ public class TPTestView extends View{
         mStep = 1;
         mPercent = "";
                      
-        subPaths = new Path[6];
+        subPaths = new Path[8];
         subPaths[0] = new Path();
         subPaths[0].moveTo(X_LEFT, Y_TOP);
         subPaths[0].lineTo(X_RIGHT, Y_TOP);
         subPaths[1] = new Path();
-        subPaths[1].moveTo(X_RIGHT, Y_TOP);
-        subPaths[1].lineTo(X_RIGHT, Y_BOTTEM);
+        subPaths[1].moveTo(X_LEFT, Y_MIDDLE);
+        subPaths[1].lineTo(X_RIGHT, Y_MIDDLE);
         subPaths[2] = new Path();
-        subPaths[2].moveTo(X_RIGHT, Y_BOTTEM);
-        subPaths[2].lineTo(X_LEFT, Y_BOTTEM);
+        subPaths[2].moveTo(X_LEFT, Y_BOTTEM);
+        subPaths[2].lineTo(X_RIGHT, Y_BOTTEM);
+
         subPaths[3] = new Path();
-        subPaths[3].moveTo(X_LEFT, Y_BOTTEM);
-        subPaths[3].lineTo(X_LEFT, Y_TOP);
+        subPaths[3].moveTo(X_LEFT, Y_TOP - TOLERANCE);
+        subPaths[3].lineTo(X_LEFT, Y_BOTTEM + TOLERANCE);
         subPaths[4] = new Path();
-        subPaths[4].moveTo(X_LEFT, Y_TOP);
-        subPaths[4].lineTo(X_RIGHT, Y_BOTTEM);
+        subPaths[4].moveTo(X_MIDDLE, Y_TOP - TOLERANCE);
+        subPaths[4].lineTo(X_MIDDLE, Y_BOTTEM + TOLERANCE);
         subPaths[5] = new Path();
-        subPaths[5].moveTo(X_RIGHT, Y_TOP);
-        subPaths[5].lineTo(X_LEFT, Y_BOTTEM);
+        subPaths[5].moveTo(X_RIGHT, Y_TOP - TOLERANCE);
+        subPaths[5].lineTo(X_RIGHT, Y_BOTTEM + TOLERANCE);
+
+        subPaths[6] = new Path();
+        subPaths[6].moveTo(X_LEFT, Y_TOP);
+        subPaths[6].lineTo(X_RIGHT, Y_BOTTEM);
+        subPaths[7] = new Path();
+        subPaths[7].moveTo(X_RIGHT, Y_TOP);
+        subPaths[7].lineTo(X_LEFT, Y_BOTTEM);
         
-        mPathSquare = new Path();
-        mPathSquare.addPath(subPaths[0]);
-        mPathSquare.addPath(subPaths[1]);
-        mPathSquare.addPath(subPaths[2]);
-        mPathSquare.addPath(subPaths[3]);
-        
+        mPathHorizontal = new Path();
+        mPathHorizontal.addPath(subPaths[0]);
+        mPathHorizontal.addPath(subPaths[1]);
+        mPathHorizontal.addPath(subPaths[2]);
+
+        mPathVertical = new Path();
+        mPathVertical.addPath(subPaths[3]);
+        mPathVertical.addPath(subPaths[4]);
+        mPathVertical.addPath(subPaths[5]);
+
         mPathCross = new Path();
-        mPathCross.addPath(subPaths[4]);
-        mPathCross.addPath(subPaths[5]);
+        mPathCross.addPath(subPaths[6]);
+        mPathCross.addPath(subPaths[7]);
         
         mPathCurrentGre = new Path();
         mPathCurrentRed = new Path();
@@ -167,22 +210,24 @@ public class TPTestView extends View{
         
         mFirstPoint = new PointF();
         mLastPoint = new PointF();
+        handler.sendEmptyMessageDelayed(TIMEOUT_MSG, TIMEOUT);
 
     }   
     
     @Override
     public boolean onTouchEvent(MotionEvent event) {
 
-        Log.v("TPTestView", "OriPoint  X: "+ event.getX()+" Y: "+ event.getY());       
+        LogUtils.logd("OriPoint  X: "+ event.getX()+" Y: "+ event.getY());
         
         PointF point = new PointF();
         
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
+                handler.removeMessages(TIMEOUT_MSG);
 
                 mPathCurrentRed.reset();
                 
-                handler.removeMessages(0);
+                handler.removeMessages(RESET_MSG);
                 mPathCurrentGre.reset();
                 hitCount = 0;
                 side = -1;
@@ -190,9 +235,17 @@ public class TPTestView extends View{
                 point = fixPoint(event.getX(), event.getY());
 
                 mPathCurrentRed.moveTo(event.getX(), event.getY());
+                isIncrease = false;
+                isDecrease = false;
                                                
                 if (isOnEdge) {
-                    if (mStep == 5 || mStep == 6) {
+                    /*
+                    * side:
+                    * \     /
+                    *  7   8
+                    *   \ /
+                    * */
+                    if (mStep == 7 || mStep == 8) {
                         if (point.x <= 120 && point.y <= 200)
                             side = 1;
                         else if (point.x > 120 && point.y > 200)
@@ -201,25 +254,33 @@ public class TPTestView extends View{
                             side = 3;
                         else if (point.x < 120 && point.y > 200)
                             side = 4;
-                    } else {
-                        if ((point.x == X_LEFT || point.x == X_RIGHT) && (point.y == Y_TOP || point.y == Y_BOTTEM))
+                    } else if (mStep <= 6) {
+                        /*
+                        * side :
+                        * --1--
+                        * --2--
+                        * --3--
+                        *
+                        * | | |
+                        * 4 5 6
+                        * | | |
+                        * */
+                        if ((point.x == X_LEFT || point.x == X_RIGHT || point.x == X_MIDDLE)
+                                && (point.y == Y_TOP || point.y == Y_BOTTEM || point.y == Y_MIDDLE)) {
                             side = 0;
-                        else if (point.x <= 240 && point.y == Y_TOP)
+                        } else if (point.y == Y_TOP) {
                             side = 1;
-                        else if (point.x > 240 && point.y == Y_TOP)
+                        } else if (point.y == Y_MIDDLE) {
                             side = 2;
-                        else if (point.x == X_RIGHT && point.y <= 400)
+                        } else if (point.y == Y_BOTTEM) {
                             side = 3;
-                        else if (point.x == X_RIGHT && point.y > 400)
+                        }else if (point.y == X_LEFT) {
                             side = 4;
-                        else if (point.x <= 240 && point.y == Y_BOTTEM)
-                            side = 6;
-                        else if (point.x > 240 && point.y == Y_BOTTEM)
+                        } else if (point.y == X_MIDDLE) {
                             side = 5;
-                        else if (point.x == X_LEFT && point.y <= 400)
-                            side = 8;
-                        else if (point.x == X_LEFT && point.y > 400)
-                            side = 7;
+                        } else if (point.y == X_RIGHT) {
+                            side = 6;
+                        }
                     }
                                         
                     drawAble = true;
@@ -239,104 +300,111 @@ public class TPTestView extends View{
                 point = fixPoint(event.getX(), event.getY());
                 mPathCurrentRed.lineTo(event.getX(), event.getY());
                 if (isOnEdge) {
-                    if ((mStep == 1 || mStep == 2 || mStep == 3 || mStep == 4)
-                            && (side == -1 || side == 0))
-                        if ((point.x == X_LEFT || point.x == X_RIGHT)
-                                && (point.y == Y_TOP || point.y == Y_BOTTEM))
+                    if (mStep <= 6 && (side == -1 || side == 0)) {
+                        if ((point.x == X_LEFT || point.x == X_RIGHT || point.x == X_MIDDLE)
+                                && (point.y == Y_TOP || point.y == Y_BOTTEM || point.y == Y_MIDDLE)) {
                             side = 0;
-                        else if (point.x <= 240 && point.y == Y_TOP)
+                        } else if (point.y == Y_TOP) {
                             side = 1;
-                        else if (point.x > 240 && point.y == Y_TOP)
+                        } else if (point.y == Y_MIDDLE) {
                             side = 2;
-                        else if (point.x == X_RIGHT && point.y <= 400)
+                        } else if (point.y == Y_BOTTEM) {
                             side = 3;
-                        else if (point.x == X_RIGHT && point.y > 400)
+                        }else if (point.x == X_LEFT) {
                             side = 4;
-                        else if (point.x <= 240 && point.y == Y_BOTTEM)
-                            side = 6;
-                        else if (point.x > 240 && point.y == Y_BOTTEM)
+                        } else if (point.x == X_MIDDLE) {
                             side = 5;
-                        else if (point.x == X_LEFT && point.y <= 400)
-                            side = 8;
-                        else if (point.x == X_LEFT && point.y > 400)
-                            side = 7;                    
+                        } else if (point.x == X_RIGHT) {
+                            side = 6;
+                        }
+                    }
                 }
                 
                 if (drawAble || !isBegin)
                     hitPoint(point.x, point.y);
                 
-                if (mStep == 1 || mStep == 2 || mStep == 3 || mStep == 4) {
-                    if (side == 1 || side == 2 || side == 5 || side == 6)
+                if (mStep <= 3) {
+                    if (side > 0 && side <= 3) {
                         mPercent = decimalFormat
                                 .format(((float) hitCount / (float) TOTAL_POINTS_SQU_1) * 100) + "%";
-                    else if (side == 3 || side == 4 || side == 7 || side == 8)
+                    }
+                } else if (mStep <= 6) {
+                    if (side >= 3 && side <= 6) {
                         mPercent = decimalFormat
                                 .format(((float) hitCount / (float) TOTAL_POINTS_SQU_2) * 100) + "%";
-                } else
+                    }
+                } else {
                     mPercent = decimalFormat
                             .format(((float) hitCount / (float) TOTAL_POINTS_CRO) * 100) + "%";
+                }
                 invalidate();
                 break;
             case MotionEvent.ACTION_UP:
-                if (mStep == 1 || mStep == 2 || mStep == 3 || mStep == 4) {
-                    if ((side == 1 || side == 2 || side == 5 || side == 6)
+                handler.sendEmptyMessageDelayed(TIMEOUT_MSG, TIMEOUT);
+                if (mStep <= 6) {
+                    if ((side > 0 && mStep <= 3)
                             && ((float) hitCount / (float) TOTAL_POINTS_SQU_1) > 0.95) {
-                        if (side == 1 || side == 2) {
+                        if (side == 1) {
                             mStep++;
                             subPaths[0].reset();
-                        } else if (side == 5 || side == 6) {
+                        } else if (side == 2) {
+                            mStep++;
+                            subPaths[1].reset();
+                        } else if (side == 3) {
                             mStep++;
                             subPaths[2].reset();
                         }
-                        mPathSquare.reset();
-                        mPathSquare.addPath(subPaths[0]);
-                        mPathSquare.addPath(subPaths[1]);
-                        mPathSquare.addPath(subPaths[2]);
-                        mPathSquare.addPath(subPaths[3]);
-                    } else if ((side == 3 || side == 4 || side == 7 || side == 8)
-                            && ((float) hitCount / (float) TOTAL_POINTS_SQU_2) > 0.95) {
-                        if (side == 3 || side == 4) {
-                            mStep++;
-                            subPaths[1].reset();
-                        } else if (side == 7 || side == 8) {
+                        mPathHorizontal.reset();
+                        mPathHorizontal.addPath(subPaths[0]);
+                        mPathHorizontal.addPath(subPaths[1]);
+                        mPathHorizontal.addPath(subPaths[2]);
+                    } else if ((side > 0 && mStep <= 6)
+                            && ((float) hitCount / (float) TOTAL_POINTS_SQU_2) >= 0.975) {
+                        if (side == 4) {
                             mStep++;
                             subPaths[3].reset();
+                        } else if (side == 5) {
+                            mStep++;
+                            subPaths[4].reset();
+                        } else if (side == 6) {
+                            mStep++;
+                            subPaths[5].reset();
                         }
-                        mPathSquare.reset();
-                        mPathSquare.addPath(subPaths[0]);
-                        mPathSquare.addPath(subPaths[1]);
-                        mPathSquare.addPath(subPaths[2]);
-                        mPathSquare.addPath(subPaths[3]);
+                        mPathVertical.reset();
+                        mPathVertical.addPath(subPaths[3]);
+                        mPathVertical.addPath(subPaths[4]);
+                        mPathVertical.addPath(subPaths[5]);
                     }
-                    handler.sendEmptyMessage(0);                
+                    handler.sendEmptyMessage(RESET_MSG);
                 } else if (((float) hitCount / (float) TOTAL_POINTS_CRO) > 0.95) {
-                    Log.i("TPTestView","mStep = "+mStep+"  side = "+side);
-                    if (mStep == 5) {
+                    LogUtils.logd("mStep = "+mStep+"  side = "+side);
+                    if (mStep == 7) {
                         if (side == 1 || side == 2) {
                             mStep++;
                             //bCrossLeft = true;
-                            subPaths[4].reset();
+                            subPaths[6].reset();
                             mPathCross.reset();
-                            mPathCross.addPath(subPaths[4]);
-                            mPathCross.addPath(subPaths[5]);
+                            mPathCross.addPath(subPaths[6]);
+                            mPathCross.addPath(subPaths[7]);
                         } else if (side == 3 || side == 4) {
                             mStep++;
                             //bCrossRight = true;
-                            subPaths[5].reset();
+                            subPaths[7].reset();
                             mPathCross.reset();
-                            mPathCross.addPath(subPaths[4]);
-                            mPathCross.addPath(subPaths[5]);
+                            mPathCross.addPath(subPaths[6]);
+                            mPathCross.addPath(subPaths[7]);
                         }
-                    }else if (mStep == 6) {
+                    } else if (mStep == 8) {
+                        handler.removeMessages(TIMEOUT_MSG);
                         Intent intent = new Intent();
                         intent.putExtra("result", true);
                         TouchPanelActivity activity = (TouchPanelActivity) mContext;
-                        activity.setResult(1, intent);
-                        activity.finish();
+                        activity.feedbackResult(0);
+//                        activity.feedbackResult(TestCase.STATE_PASS);
                     }
-                    handler.sendEmptyMessage(0);
+                    handler.sendEmptyMessage(RESET_MSG);
                 } else
-                    handler.sendEmptyMessageDelayed(0, 500);
+                    handler.sendEmptyMessageDelayed(RESET_MSG, 500);
                 side = 0;
                 break;
             default:
@@ -345,81 +413,37 @@ public class TPTestView extends View{
         return true;
     }
     
-    private Handler handler = new Handler(){
-        @Override
-        public void handleMessage(Message msg) {
-            super.handleMessage(msg);
-            mPathCurrentRed.reset();
-            mPathCurrentGre.reset();
-            mPercent = "";
-            invalidate();
-        }       
-    };
-    
     protected PointF fixPoint(float x, float y) {
         isOnEdge = false;
-        if (mStep == 1 || mStep == 2 || mStep == 3 || mStep == 4) {
-            if (y >= Y_TOP - TOLERANCE && y <= Y_TOP + TOLERANCE && x >= X_LEFT - TOLERANCE && x <= X_LEFT + TOLERANCE) {
-                if (side == 1 || side == 2)
-                    y = Y_TOP;
-                else if (side == 7  || side == 8)
-                    x = X_LEFT;
-                else {
-                    x = X_LEFT;
-                    y = Y_TOP;
-                }
+        if (mStep <= 3) {
+            if ( (side == 1 || side == 0 || side == -1) && y >= Y_TOP - TOLERANCE * 2/3 && y <= Y_TOP + TOLERANCE * 2/3) {
+                y = Y_TOP;
                 isOnEdge = true;
-            } else if (y >= Y_TOP - TOLERANCE && y <= Y_TOP + TOLERANCE && x >= X_RIGHT - TOLERANCE && x <= X_RIGHT + TOLERANCE) {
-                if (side == 1 || side == 2)
-                    y = Y_TOP;
-                else if (side == 3 || side == 4)
-                    x = X_RIGHT;
-                else {
-                    x = X_RIGHT;
-                    y = Y_TOP;
-                }
+            } else if ((side == 2 || side == 0 || side == -1) && y >= Y_MIDDLE - TOLERANCE * 2/3 && y <= Y_MIDDLE + TOLERANCE * 2/3) {
+                y = Y_MIDDLE;
                 isOnEdge = true;
-            }else if (y >= Y_BOTTEM - TOLERANCE && y <= Y_BOTTEM + TOLERANCE && x >= X_RIGHT - TOLERANCE && x <= X_RIGHT + TOLERANCE) {
-                if (side == 3 || side == 4)
-                    x = X_RIGHT;
-                else if (side == 5 || side == 6)
-                    y = Y_BOTTEM;
-                else {
-                    x = X_RIGHT;
-                    y = Y_BOTTEM;
-                }
+            } else if ((side == 3 || side == 0 || side == -1) && y >= Y_BOTTEM - TOLERANCE * 2/3 && y <= Y_BOTTEM + TOLERANCE * 2/3) {
+                y = Y_BOTTEM;
                 isOnEdge = true;
-            } else if (y >= Y_BOTTEM - TOLERANCE && y <= Y_BOTTEM + TOLERANCE && x >= X_LEFT - TOLERANCE && x <= X_LEFT + TOLERANCE) {
-                if (side == 5 || side == 6)
-                    y = Y_BOTTEM;
-                else if (side == 7 || side == 8)
-                    x = X_LEFT;
-                else {
-                    x = X_LEFT;
-                    y = Y_BOTTEM;
-                }
-                isOnEdge = true;
-            }else {
-                if ((side == 1 || side == 2 || side == 0 || side == -1) && y >= Y_TOP - TOLERANCE && y <= Y_TOP || (y >= Y_TOP && y <= Y_TOP + TOLERANCE)) {
-                    y = Y_TOP;
-                    isOnEdge = true;
-                } 
-                if ((side == 7 || side == 8 || side == 0 || side == -1) && x >= X_LEFT - TOLERANCE && x <= X_LEFT || (x >= X_LEFT && x <= X_LEFT + TOLERANCE)) {
-                    x = X_LEFT;
-                    isOnEdge = true;
-                }
-                if ((side == 3 || side == 4 || side == 0 || side == -1) && x >= X_RIGHT - TOLERANCE && x <= X_RIGHT || (x >= X_RIGHT && x <= X_RIGHT + TOLERANCE)) {
-                    x = X_RIGHT;
-                    isOnEdge = true;
-                }
-                if ((side == 5 || side == 6 || side == 0 || side == -1) && y >= Y_BOTTEM - TOLERANCE && y <= Y_BOTTEM || (y >= Y_BOTTEM && y <= Y_BOTTEM + TOLERANCE)) {
-                    y = Y_BOTTEM;
-                    isOnEdge = true;
-                }
-            }            
+            }
             if (x < X_LEFT || x > X_RIGHT || y < Y_TOP || y > Y_BOTTEM)
                 isOnEdge = false;
-        } else if (mStep == 5 || mStep == 6) {
+        } else if (mStep <= 6) {
+
+            if ((side == 4 || side == 0 || side == -1) && x >= X_LEFT - TOLERANCE * 2/3 && x <= X_LEFT + TOLERANCE * 2/3) {
+                x = X_LEFT;
+                isOnEdge = true;
+            } else if ((side == 5 || side == 0 || side == -1) && x >= X_MIDDLE - TOLERANCE * 2/3 && x <= X_MIDDLE + TOLERANCE * 2/3) {
+                x = X_MIDDLE;
+                isOnEdge = true;
+            } else if ((side == 6 || side == 0 || side == -1) && x >= X_RIGHT - TOLERANCE * 2/3 && x <= X_RIGHT + TOLERANCE * 2/3) {
+                x = X_RIGHT;
+                isOnEdge = true;
+            }
+
+            if (x < X_LEFT || x > X_RIGHT || y < Y_TOP || y > Y_BOTTEM)
+                isOnEdge = false;
+        } else if (mStep == 7 || mStep == 8) {
             if (x < X_LEFT)
                 x = X_LEFT;
             else if (x > X_RIGHT)
@@ -437,25 +461,25 @@ public class TPTestView extends View{
             else if (y2 > Y_BOTTEM)
                 y2 = Y_BOTTEM;
 
-            Log.i("ldong", "side = "+side +" y1 = " +y1 +" y2 = "+y2);
-            if (!subPaths[4].isEmpty() && y >= y1 - TOLERANCE -20 && y <= y1 + TOLERANCE+20 && side != 3 && side != 4) {
+            LogUtils.logd("side = "+side +" y1 = " +y1 +" y2 = "+y2);
+            if (!subPaths[6].isEmpty() && y >= y1 - TOLERANCE -20 && y <= y1 + TOLERANCE+20 && side != 3 && side != 4) {
                 y = y1;
                 isOnEdge = true;
-            } else if (!subPaths[5].isEmpty() && y >= y2 - TOLERANCE -20 && y <= y2 + TOLERANCE +20 && side != 1 && side !=2) {
+            } else if (!subPaths[7].isEmpty() && y >= y2 - TOLERANCE -20 && y <= y2 + TOLERANCE +20 && side != 1 && side !=2) {
                 y = y2;
                 isOnEdge = true;
             }
         }
 
-        Log.i("TPTestView", "FixPoint  X: " + x + " Y:" + y + " isOnEdge = "+isOnEdge + " mStep = "+mStep);
+        LogUtils.logd("FixPoint  X: " + x + " Y:" + y + " isOnEdge = "+isOnEdge + " mStep = "+mStep);
         return new PointF(x, y);
     }
     
     protected void hitPoint(float x, float y) {
-        Log.v("TPTestView", "side : " + side);
-        Log.v("TPTestView", "LastPoint : " + mLastPoint.x + "  " + mLastPoint.y);
-        Log.v("TPTestView", "CurrPoint : " + x + "  " + y);
-        if (isOnEdge && (mStep == 1 || mStep == 2 || mStep == 3 || mStep == 4)) {
+        LogUtils.logd("side : " + side);
+        LogUtils.logd("LastPoint : " + mLastPoint.x + "  " + mLastPoint.y);
+        LogUtils.logd("CurrPoint : " + x + "  " + y);
+        if (isOnEdge && (mStep <= 6)) {
             if (side >= 0 && !isBegin) {
                 drawAble = true;
                 isBegin = true;
@@ -465,88 +489,62 @@ public class TPTestView extends View{
             } 
             if (side == 0){
                 isHit = true;
-            } else if (!subPaths[0].isEmpty() && side == 1) {
-                if (x >= mLastPoint.x && (y == mLastPoint.y || mLastPoint.x == X_LEFT)) {
+                isIncrease = false;
+                isDecrease = false;
+            } else if ((!subPaths[0].isEmpty() && side == 1)
+                            || (!subPaths[1].isEmpty() && side == 2)
+                            || (!subPaths[2].isEmpty() && side == 3)) {
+                if (x != mLastPoint.x && y == mLastPoint.y) {
+                    if (!isIncrease && !isDecrease) {
+                        if (x > mLastPoint.x) {
+                            isIncrease = true;
+                        } else {
+                            isDecrease = true;
+                        }
+                    }
+                    if (isIncrease && x < mLastPoint.x) {
+                        return;
+                    } else if (isDecrease && x > mLastPoint.x) {
+                        return;
+                    }
                     if (isHit){
                         hitCount += Math.abs(x - mLastPoint.x);
                         mPathCurrentGre.lineTo(x, y);                        
                     } else {
-                        isHit = true;                        
+                        isHit = true;
+                        isIncrease = false;
+                        isDecrease = false;
                     }
                     mLastPoint.set(x, y);
                 }               
-            } else if (!subPaths[0].isEmpty() && side == 2) {
-                if (x <= mLastPoint.x && (y == mLastPoint.y || mLastPoint.x == X_RIGHT)) {
-                    if (isHit){
-                        hitCount += Math.abs(x - mLastPoint.x);
-                        mPathCurrentGre.lineTo(x, y);
-                    } else {
-                        isHit = true;                        
+            } else if ((!subPaths[3].isEmpty() && side == 4)
+                                || (!subPaths[4].isEmpty() && side == 5)
+                                || (!subPaths[5].isEmpty() && side == 6)) {
+                if (y != mLastPoint.y && x == mLastPoint.x) {
+                    if (!isIncrease && !isDecrease) {
+                        if (y > mLastPoint.y) {
+                            isIncrease = true;
+                        } else {
+                            isDecrease = true;
+                        }
                     }
-                    mLastPoint.set(x, y);
-                }               
-            } else if (!subPaths[1].isEmpty() && side == 3) {
-                if (y >= mLastPoint.y && (x == mLastPoint.x || mLastPoint.y == Y_TOP)) {
-                    if (isHit){
-                        hitCount += Math.abs(y - mLastPoint.y);
-                        mPathCurrentGre.lineTo(x, y);
-                    } else {
-                        isHit = true;
+                    if (isIncrease && y < mLastPoint.y) {
+                        return;
+                    } else if (isDecrease && y > mLastPoint.y) {
+                        return;
                     }
-                    mLastPoint.set(x, y);
-                }
-            } else if (!subPaths[1].isEmpty() && side == 4) {
-                if (y <= mLastPoint.y && (x == mLastPoint.x || mLastPoint.y == Y_BOTTEM)) {
                     if (isHit){
                         hitCount += Math.abs(y - mLastPoint.y);
                         mPathCurrentGre.lineTo(x, y);
                     } else {
                         isHit = true;
+                        isIncrease = false;
+                        isDecrease = false;
                     }
                     mLastPoint.set(x, y);
                 }
-            } else if (!subPaths[2].isEmpty() && side == 5) {
-                if (x <= mLastPoint.x && (y == mLastPoint.y || mLastPoint.x == X_RIGHT)) {
-                    if (isHit){
-                        hitCount += Math.abs(x - mLastPoint.x);
-                        mPathCurrentGre.lineTo(x, y);
-                    } else {
-                        isHit = true;
-                    }
-                    mLastPoint.set(x, y);
-                }
-            } else if (!subPaths[2].isEmpty() && side == 6) {
-                if (x >= mLastPoint.x && (y == mLastPoint.y || mLastPoint.x == X_LEFT)) {
-                    if (isHit){
-                        hitCount += Math.abs(x - mLastPoint.x);
-                        mPathCurrentGre.lineTo(x, y);
-                    } else {
-                        isHit = true;
-                    }
-                    mLastPoint.set(x, y);
-                }
-            } else if (!subPaths[3].isEmpty() && side == 7) {
-                if (y <= mLastPoint.y && (x == mLastPoint.x || mLastPoint.y == Y_BOTTEM)) {
-                    if (isHit){
-                        hitCount += Math.abs(y - mLastPoint.y);
-                        mPathCurrentGre.lineTo(x, y);
-                    } else {
-                        isHit = true;
-                    }
-                    mLastPoint.set(x, y);
-                }
-            } else if (!subPaths[3].isEmpty() && side == 8) {
-                if (y >= mLastPoint.y && (x == mLastPoint.x || mLastPoint.y == Y_TOP)) {
-                    if (isHit){
-                        hitCount += Math.abs(y - mLastPoint.y);
-                        mPathCurrentGre.lineTo(x, y);
-                    } else {
-                        isHit = true;
-                    }
-                    mLastPoint.set(x, y);
-                }
-            } 
-        } else if (isOnEdge && (mStep == 5 || mStep == 6)) {
+            }
+        } else if (isOnEdge && (mStep == 7 || mStep == 8)) {
             if (side > 0) {
                 if (!isBegin) {
                     drawAble = true;
@@ -593,24 +591,26 @@ public class TPTestView extends View{
             isHit = false;
             drawAble = false;
         }
-        Log.v("TPTestView", "Percent:  "+ mPercent);
-        Log.v("TPTestView","   ");
-       
+        LogUtils.logd("Percent:  "+ mPercent);
+
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-           
-        if (mStep == 1 || mStep == 2 || mStep == 3 || mStep == 4) {
-            canvas.drawPath(mPathSquare, mPaintStandard);
+        if (mStep <= 3) {
+            canvas.drawPath(mPathHorizontal, mPaintStandard);
 
-            canvas.drawText(mPercent, 80, 140, mPaintPercent);
+            //canvas.drawText(mPercent, 80, 140, mPaintPercent);
             
-        } else if (mStep == 5 || mStep == 6) {
+        } else if (mStep <= 6) {
+            canvas.drawPath(mPathVertical, mPaintStandard);
+
+            //canvas.drawText(mPercent, 80, 140, mPaintPercent);
+        } else if (mStep <= 8) {
             canvas.drawPath(mPathCross, mPaintStandard);
 
-            canvas.drawText(mPercent, 80, 120, mPaintPercent);
+            //canvas.drawText(mPercent, 80, 120, mPaintPercent);
         }
                 
         canvas.drawPath(mPathCurrentGre, mPaintCurrentGre);

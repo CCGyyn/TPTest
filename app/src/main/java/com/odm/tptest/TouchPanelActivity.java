@@ -54,4 +54,17 @@ public class TouchPanelActivity extends Activity {
         super.onResume();
         setContentView(new TPTestView(this, mWidthPix, mHightPix));
     }
+
+    public void feedbackResult(int resultId) {
+        /*LogUtils.logi( "feedbackResult,caseName:" + mTestCase.getName() + " status:" + resultId);
+        *//***stop case*//*
+        mPresenter.stopCase(mTestCase);
+
+        *//***update result*//*
+        updateResultForCase(mTestCase.getName(), resultId);*/
+
+        /***finish activity*/
+        setResult(RESULT_OK);
+        finish();
+    }
 }
