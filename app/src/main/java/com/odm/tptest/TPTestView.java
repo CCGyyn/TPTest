@@ -17,6 +17,7 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import java.text.DecimalFormat;
+import android.util.Log;
 
 public class TPTestView extends View {
 
@@ -97,7 +98,7 @@ public class TPTestView extends View {
         Resources resources = context.getResources();
         int resourceId = resources.getIdentifier("navigation_bar_height","dimen", "android");
         int height = resources.getDimensionPixelSize(resourceId);
-        LogUtils.logd("Navi height:" + height);
+        Log.d("Navi height:" + height);
         return height;
     }
 
@@ -105,7 +106,7 @@ public class TPTestView extends View {
         Resources resources = context.getResources();
         int resourceId = resources.getIdentifier("status_bar_height", "dimen","android");
         int height = resources.getDimensionPixelSize(resourceId);
-        LogUtils.logd("Status height:" + height);
+        Log.d("Status height:" + height);
         return height;
     }
 
@@ -119,8 +120,12 @@ public class TPTestView extends View {
         X_MIDDLE = widthPix / 2;
         Y_MIDDLE = heightPix /2;
 
-        TOTAL_POINTS_SQU_1 = (int) (X_RIGHT - X_LEFT);
-        TOTAL_POINTS_SQU_2 = (int) (Y_BOTTEM - Y_TOP);
+        //modified by caigaopeng for Q6801 ID1011505 begin
+        /*TOTAL_POINTS_SQU_1 = (int) (X_RIGHT - X_LEFT);
+        TOTAL_POINTS_SQU_2 = (int) (Y_BOTTEM - Y_TOP);*/
+        TOTAL_POINTS_SQU_1 = widthPix - (int)X_LEFT / 2;
+        TOTAL_POINTS_SQU_2 = heightPix - (int)Y_TOP / 2;
+        //modified by caigaopeng for Q6801 ID1011505 end
         TOTAL_POINTS_CRO = (float) Math.sqrt(Math.pow(X_RIGHT - X_LEFT, 2)
                 + Math.pow(Y_BOTTEM - Y_TOP, 2));
 
@@ -217,7 +222,7 @@ public class TPTestView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
 
-        LogUtils.logd("OriPoint  X: "+ event.getX()+" Y: "+ event.getY());
+        Log.d("OriPoint  X: "+ event.getX()+" Y: "+ event.getY());
         
         PointF point = new PointF();
         
@@ -233,10 +238,10 @@ public class TPTestView extends View {
                 side = -1;
 
                 point = fixPoint(event.getX(), event.getY());
-
-                mPathCurrentRed.moveTo(event.getX(), event.getY());
                 isIncrease = false;
                 isDecrease = false;
+
+                mPathCurrentRed.moveTo(event.getX(), event.getY());
                                                
                 if (isOnEdge) {
                     /*
@@ -341,6 +346,7 @@ public class TPTestView extends View {
                 break;
             case MotionEvent.ACTION_UP:
                 handler.sendEmptyMessageDelayed(TIMEOUT_MSG, TIMEOUT);
+                Log.d("MotionEvent.ACTION_UP Percent:  "+ mPercent);
                 if (mStep <= 6) {
                     if ((side > 0 && mStep <= 3)
                             && ((float) hitCount / (float) TOTAL_POINTS_SQU_1) > 0.95) {
@@ -359,7 +365,7 @@ public class TPTestView extends View {
                         mPathHorizontal.addPath(subPaths[1]);
                         mPathHorizontal.addPath(subPaths[2]);
                     } else if ((side > 0 && mStep <= 6)
-                            && ((float) hitCount / (float) TOTAL_POINTS_SQU_2) >= 0.975) {
+                            && ((float) hitCount / (float) TOTAL_POINTS_SQU_2) >= 0.95) {
                         if (side == 4) {
                             mStep++;
                             subPaths[3].reset();
@@ -377,7 +383,7 @@ public class TPTestView extends View {
                     }
                     handler.sendEmptyMessage(RESET_MSG);
                 } else if (((float) hitCount / (float) TOTAL_POINTS_CRO) > 0.95) {
-                    LogUtils.logd("mStep = "+mStep+"  side = "+side);
+                    Log.d("mStep = "+mStep+"  side = "+side);
                     if (mStep == 7) {
                         if (side == 1 || side == 2) {
                             mStep++;
@@ -400,7 +406,7 @@ public class TPTestView extends View {
                         intent.putExtra("result", true);
                         TouchPanelActivity activity = (TouchPanelActivity) mContext;
                         activity.feedbackResult(0);
-//                        activity.feedbackResult(TestCase.STATE_PASS);
+                        //activity.feedbackResult(TestCase.STATE_PASS);
                     }
                     handler.sendEmptyMessage(RESET_MSG);
                 } else
@@ -426,8 +432,10 @@ public class TPTestView extends View {
                 y = Y_BOTTEM;
                 isOnEdge = true;
             }
-            if (x < X_LEFT || x > X_RIGHT || y < Y_TOP || y > Y_BOTTEM)
-                isOnEdge = false;
+            //deleted by caigaopeng for Q6801 ID1011505 begin
+            /*if (x < X_LEFT || x > X_RIGHT || y < Y_TOP || y > Y_BOTTEM)
+                isOnEdge = false;*/
+            //deleted by caigaopeng for Q6801 ID1011505 end
         } else if (mStep <= 6) {
 
             if ((side == 4 || side == 0 || side == -1) && x >= X_LEFT - TOLERANCE * 2/3 && x <= X_LEFT + TOLERANCE * 2/3) {
@@ -441,8 +449,10 @@ public class TPTestView extends View {
                 isOnEdge = true;
             }
 
-            if (x < X_LEFT || x > X_RIGHT || y < Y_TOP || y > Y_BOTTEM)
-                isOnEdge = false;
+            //deleted by caigaopeng for Q6801 ID1011505 begin
+            /*if (x < X_LEFT || x > X_RIGHT || y < Y_TOP || y > Y_BOTTEM)
+                isOnEdge = false;*/
+            //deleted by caigaopeng for Q6801 ID1011505 end
         } else if (mStep == 7 || mStep == 8) {
             if (x < X_LEFT)
                 x = X_LEFT;
@@ -461,7 +471,7 @@ public class TPTestView extends View {
             else if (y2 > Y_BOTTEM)
                 y2 = Y_BOTTEM;
 
-            LogUtils.logd("side = "+side +" y1 = " +y1 +" y2 = "+y2);
+            Log.d("side = "+side +" y1 = " +y1 +" y2 = "+y2);
             if (!subPaths[6].isEmpty() && y >= y1 - TOLERANCE -20 && y <= y1 + TOLERANCE+20 && side != 3 && side != 4) {
                 y = y1;
                 isOnEdge = true;
@@ -471,14 +481,14 @@ public class TPTestView extends View {
             }
         }
 
-        LogUtils.logd("FixPoint  X: " + x + " Y:" + y + " isOnEdge = "+isOnEdge + " mStep = "+mStep);
+        Log.d("FixPoint  X: " + x + " Y:" + y + " isOnEdge = "+isOnEdge + " mStep = "+mStep);
         return new PointF(x, y);
     }
     
     protected void hitPoint(float x, float y) {
-        LogUtils.logd("side : " + side);
-        LogUtils.logd("LastPoint : " + mLastPoint.x + "  " + mLastPoint.y);
-        LogUtils.logd("CurrPoint : " + x + "  " + y);
+        Log.d("side : " + side);
+        Log.d("LastPoint : " + mLastPoint.x + "  " + mLastPoint.y);
+        Log.d("CurrPoint : " + x + "  " + y);
         if (isOnEdge && (mStep <= 6)) {
             if (side >= 0 && !isBegin) {
                 drawAble = true;
@@ -591,7 +601,7 @@ public class TPTestView extends View {
             isHit = false;
             drawAble = false;
         }
-        LogUtils.logd("Percent:  "+ mPercent);
+        Log.d("Percent:  "+ mPercent);
 
     }
 
